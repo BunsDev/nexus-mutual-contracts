@@ -483,7 +483,7 @@ async function setup() {
 
     await tx.wait();
     const stakingPoolAddress = await cover.stakingPool(i);
-    const stakingPoolInstance = await IntegrationMockStakingPool.at(stakingPoolAddress);
+    const stakingPoolInstance = await StakingPool.at(stakingPoolAddress);
 
     this.contracts['stakingPool' + i] = stakingPoolInstance;
   }
