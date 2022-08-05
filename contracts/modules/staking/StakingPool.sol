@@ -937,6 +937,8 @@ contract StakingPool is IStakingPool, SolmateERC721 {
       uint trancheGroupId = trancheId / COVER_TRANCHE_GROUP_SIZE - firstGroupId;
       uint trancheIndexInGroup = trancheId % COVER_TRANCHE_GROUP_SIZE;
 
+
+      console.log("allocatedCapacities[i]", allocatedCapacities[i]);
       // setItemAt does not mutate so we have to reassign it
       coverAmountGroups[trancheGroupId] = coverAmountGroups[trancheGroupId].setItemAt(
         trancheIndexInGroup,
