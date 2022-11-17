@@ -189,6 +189,7 @@ contract StakingPool is IStakingPool, ERC721 {
     // create ownership nft
     totalSupply = 1;
     _mint(_manager, 0);
+    emit StakingPoolInitialized(_manager, poolId);
   }
 
   function isApprovedOrOwner(address spender, uint tokenId) public view returns (bool) {
@@ -459,6 +460,7 @@ contract StakingPool is IStakingPool, ERC721 {
     activeStake = _activeStake;
     stakeSharesSupply = _stakeSharesSupply;
     rewardsSharesSupply = _rewardsSharesSupply;
+    emit StakeDeposited(msg.sender, totalAmount);
   }
 
   function getTimeLeftOfTranche(uint trancheId, uint blockTimestamp) internal pure returns (uint) {
@@ -676,6 +678,7 @@ contract StakingPool is IStakingPool, ERC721 {
       allocatedCoverAmount *= NXM_PER_ALLOCATION_UNIT;
 
       // premium and rewards already have 18 decimals
+      emit StakeAllocated(allocatedCoverAmount, premium, rewards);
       return (allocatedCoverAmount, premium, rewards);
     }
   }
@@ -689,6 +692,7 @@ contract StakingPool is IStakingPool, ERC721 {
     updateTranches(true);
     deallocateStakeForCover(request, coverStartTime);
     removeCoverReward(coverStartTime, request.period, premium, request.rewardRatio);
+    emit StakeDeallocated(request.amount, request.coverId, request.rewardRation);
   }
 
   function removeCoverReward(
@@ -1232,6 +1236,7 @@ contract StakingPool is IStakingPool, ERC721 {
 
     // transfer nxm from the staker and update the pool deposit balance
     tokenController.depositStakedNXM(msg.sender, transferAmount, poolId);
+    emit DepositExtended(msg.sender, transferAmount, poolId);
   }
 
   // O(1)
@@ -1254,6 +1259,7 @@ contract StakingPool is IStakingPool, ERC721 {
 
     uint _activeStake = activeStake;
     activeStake = _activeStake > amount ? _activeStake - amount : 0;
+    emit StakeBurned(amount, productId);
   }
 
   /* nft */
@@ -1337,6 +1343,7 @@ contract StakingPool is IStakingPool, ERC721 {
       products[productId] = _product;
     }
     totalEffectiveWeight = _totalEffectiveWeight.toUint32();
+    emit EffectiveWeightsRecalculated(totalEffectiveWeight);
   }
 
 function setProducts(StakedProductParam[] memory params) external onlyManager {
@@ -1410,6 +1417,7 @@ function setProducts(StakedProductParam[] memory params) external onlyManager {
     }
     totalTargetWeight = _totalTargetWeight.toUint32();
     totalEffectiveWeight = _totalEffectiveWeight.toUint32();
+    emit ProductsSet(totalTargetWeight, totalEffectiveWeight);
   }
 
   function _setInitialProducts(ProductInitializationParams[] memory params) internal {
@@ -1464,6 +1472,7 @@ function setProducts(StakedProductParam[] memory params) external onlyManager {
       // sstore
       deposits[0][trancheId] = feeDeposit;
     }
+    emit PoolFeeSet(poolFee);
   }
 
   function setPoolPrivacy(bool _isPrivatePool) external onlyManager {

@@ -141,4 +141,19 @@ interface IStakingPool {
     uint lastBasePrice,
     uint targetPrice
   );
+
+  /* ========== EVENTS ========== */
+  event StakingPoolInitialized(address manager);
+  event StakeDeposited(address sender, uint amount);
+  event StakeAllocated(uint allocatedAmount, uint premium, uint rewards);
+  event StakeDeallocated(uint deallocatedAmount, uint coverId, uint rewardRatio);
+  event StakeWithdrawn(address receiver, uint amount, uint tokenId);
+  event RewardsWithdrawn(address receiver, uint amount, uint tokenId);
+  event DepositExtended(address sender, uint amount);
+  event StakeBurned(uint amount, uint productId);
+  event EffectiveWeightsRecalculated(uint totalEffectiveWeight);
+  event ProductsSet(uint totalTargetWeight, uint totalEffectiveWeight);
+  event PoolFeeSet(uint poolFee);
+  event PoolPrivacySet(bool isPrivatePool);
 }
+
