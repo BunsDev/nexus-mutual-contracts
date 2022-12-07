@@ -2,8 +2,6 @@
 
 pragma solidity >=0.5.0;
 
-import "@openzeppelin/contracts-v4/token/ERC721/IERC721.sol";
-
 /* structs for io */
 
 struct AllocationRequest {
@@ -84,8 +82,6 @@ interface IStakingPool {
     uint _poolId,
     string memory ipfsDescriptionHash
   ) external;
-
-  function operatorTransfer(address from, address to, uint[] calldata tokenIds) external;
 
   function processExpirations(bool updateUntilCurrentTimestamp) external;
 
