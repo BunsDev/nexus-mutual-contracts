@@ -28,7 +28,7 @@ contract StakingPool is IStakingPool {
 
   /* storage */
 
-  uint poolId;
+  uint public poolId;
 
   // currently active staked nxm amount
   uint public activeStake;
@@ -85,58 +85,58 @@ contract StakingPool is IStakingPool {
 
   /* immutables */
 
-  INXMToken public immutable nxm;
-  ITokenController public  immutable tokenController;
-  IStakingNFT public immutable stakingNFT;
-  address public immutable coverContract;
+  INXMToken internal immutable nxm;
+  ITokenController internal  immutable tokenController;
+  IStakingNFT internal immutable stakingNFT;
+  address internal immutable coverContract;
 
   /* constants */
 
   // 7 * 13 = 91
-  uint public constant BUCKET_DURATION = 28 days;
-  uint public constant TRANCHE_DURATION = 91 days;
-  uint public constant MAX_ACTIVE_TRANCHES = 8; // 7 whole quarters + 1 partial quarter
+  uint internal constant BUCKET_DURATION = 28 days;
+  uint internal constant TRANCHE_DURATION = 91 days;
+  uint internal constant MAX_ACTIVE_TRANCHES = 8; // 7 whole quarters + 1 partial quarter
 
-  uint public constant COVER_TRANCHE_GROUP_SIZE = 5;
-  uint public constant BUCKET_TRANCHE_GROUP_SIZE = 8;
+  uint internal constant COVER_TRANCHE_GROUP_SIZE = 5;
+  uint internal constant BUCKET_TRANCHE_GROUP_SIZE = 8;
 
-  uint public constant REWARD_BONUS_PER_TRANCHE_RATIO = 10_00; // 10.00%
-  uint public constant REWARD_BONUS_PER_TRANCHE_DENOMINATOR = 100_00;
-  uint public constant MAX_TOTAL_WEIGHT = 20_00; // 20x
-  uint public constant WEIGHT_DENOMINATOR = 100;
-  uint public constant REWARDS_DENOMINATOR = 100_00;
-  uint public constant POOL_FEE_DENOMINATOR = 100;
+  uint internal constant REWARD_BONUS_PER_TRANCHE_RATIO = 10_00; // 10.00%
+  uint internal constant REWARD_BONUS_PER_TRANCHE_DENOMINATOR = 100_00;
+  uint internal constant MAX_TOTAL_WEIGHT = 20_00; // 20x
+  uint internal constant WEIGHT_DENOMINATOR = 100;
+  uint internal constant REWARDS_DENOMINATOR = 100_00;
+  uint internal constant POOL_FEE_DENOMINATOR = 100;
 
   // denominators for cover contract parameters
-  uint public constant GLOBAL_CAPACITY_DENOMINATOR = 100_00;
-  uint public constant CAPACITY_REDUCTION_DENOMINATOR = 100_00;
-  uint public constant INITIAL_PRICE_DENOMINATOR = 100_00;
-  uint public constant TARGET_PRICE_DENOMINATOR = 100_00;
+  uint internal constant GLOBAL_CAPACITY_DENOMINATOR = 100_00;
+  uint internal constant CAPACITY_REDUCTION_DENOMINATOR = 100_00;
+  uint internal constant INITIAL_PRICE_DENOMINATOR = 100_00;
+  uint internal constant TARGET_PRICE_DENOMINATOR = 100_00;
 
   // base price bump
   // +0.2% for each 1% of capacity used, ie +20% for 100%
-  uint public constant PRICE_BUMP_RATIO = 20_00; // 20%
+  uint internal constant PRICE_BUMP_RATIO = 20_00; // 20%
 
   // next price smoothing
   // 0.5% per day
-  uint public constant PRICE_CHANGE_PER_DAY = 50; // 0.5%
+  uint internal constant PRICE_CHANGE_PER_DAY = 50; // 0.5%
 
   // +2% for every 1%, ie +200% for 100%
-  uint public constant SURGE_PRICE_RATIO = 2 ether;
+  uint internal constant SURGE_PRICE_RATIO = 2 ether;
 
-  uint public constant SURGE_THRESHOLD_RATIO = 90_00; // 90.00%
-  uint public constant SURGE_THRESHOLD_DENOMINATOR = 100_00; // 100.00%
+  uint internal constant SURGE_THRESHOLD_RATIO = 90_00; // 90.00%
+  uint internal constant SURGE_THRESHOLD_DENOMINATOR = 100_00; // 100.00%
 
   // 1 nxm = 1e18
-  uint public constant ONE_NXM = 1 ether;
+  uint internal constant ONE_NXM = 1 ether;
 
   // internally we store capacity using 2 decimals
   // 1 nxm of capacity is stored as 100
-  uint public constant ALLOCATION_UNITS_PER_NXM = 100;
+  uint internal constant ALLOCATION_UNITS_PER_NXM = 100;
 
   // given capacities have 2 decimals
   // smallest unit we can allocate is 1e18 / 100 = 1e16 = 0.01 NXM
-  uint public constant NXM_PER_ALLOCATION_UNIT = ONE_NXM / ALLOCATION_UNITS_PER_NXM;
+  uint internal constant NXM_PER_ALLOCATION_UNIT = ONE_NXM / ALLOCATION_UNITS_PER_NXM;
 
   modifier onlyCoverContract {
     require(msg.sender == coverContract, "StakingPool: Only Cover contract can call this function");
@@ -1146,37 +1146,6 @@ contract StakingPool is IStakingPool {
 
     // sstore
     activeStake = initialStake - burnAmount;
-  }
-
-  /* views */
-
-  function getActiveStake() external view returns (uint) {
-    block.timestamp; // prevents warning about function being pure
-    return 0;
-  }
-
-  function getProductStake(
-    uint productId, uint coverExpirationDate
-  ) public view returns (uint) {
-    productId;
-    coverExpirationDate;
-    block.timestamp;
-    return 0;
-  }
-
-  function getAllocatedProductStake(uint productId) public view returns (uint) {
-    productId;
-    block.timestamp;
-    return 0;
-  }
-
-  function getFreeProductStake(
-    uint productId, uint coverExpirationDate
-  ) external view returns (uint) {
-    productId;
-    coverExpirationDate;
-    block.timestamp;
-    return 0;
   }
 
   /* pool management */
