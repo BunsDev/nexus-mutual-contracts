@@ -123,7 +123,7 @@ interface IStakingPool {
 
   // function getAllocatedProductStake(uint productId) external view returns (uint);
 
-    /* ========== EVENTS ========== */
+  /* ========== EVENTS ========== */
 
   event StakeDeposited(address indexed user, uint256 amount, uint256 trancheId, uint256 tokenId);
 
@@ -134,4 +134,31 @@ interface IStakingPool {
   event PoolFeeChanged(address indexed manager, uint newFee);
 
   event PoolDescriptionSet(uint poolId, string ipfsDescriptionHash);
+
+  /* ========== ERRORS ========== */
+
+  error CallerIsNotCoverContract();
+  error CallerIsNotManager();
+  error PoolFeeExceedsMaxPoolFee();
+  error InvalidMaxPoolFee();
+  error PoolIsPrivate();
+  error InsufficientDepositAmount();
+  error TrancheNotActive(uint trancheId);
+  error TrancheExpired(uint trancheId);
+  error LockedForGovernanceVoting(address member);
+  error InvalidRewardRatio();
+  error InsufficientCapacity();
+  error NotTokenOwnerOrApproved(address checkedAddress, uint tokenId);
+  error InvalidTokenId();
+  error TrancheNotGreaterThanCurrent(uint initialTrancheId, uint targetTrancheId);
+  error PoolNotAllowed(uint productId);
+  error ProductTargetPriceNotSet(uint productId);
+  error ProductTargetWeightNotSet(uint productId);
+  error ProductTargetPriceTooHigh();
+  error ProductTargetPriceTooLow();
+  error EffectiveWeightRecalculationRequired();
+  error ProductTargetWeightTooHigh();
+  error MaxTotalTargetWeightExceeded();
+  error MaxTotalEffectiveWeightExceeded();
+
 }

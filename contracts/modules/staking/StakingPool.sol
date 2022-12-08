@@ -139,13 +139,17 @@ contract StakingPool is IStakingPool {
   uint internal constant NXM_PER_ALLOCATION_UNIT = ONE_NXM / ALLOCATION_UNITS_PER_NXM;
 
   modifier onlyCoverContract {
-    require(msg.sender == coverContract, "StakingPool: Only Cover contract can call this function");
+    if (msg.sender != coverContract) {
+      revert CallerIsNotCoverContract();
+    }
     _;
   }
 
   modifier onlyManager {
-    require(isApprovedOrOwner(msg.sender, 0), "StakingPool: Only pool manager can call this function");
-    _;
+    if (!isApprovedOrOwner(msg.sender, 0)) {
+      revert CallerIsNotManager();
+    }
+  _;
   }
 
   constructor (
@@ -171,8 +175,13 @@ contract StakingPool is IStakingPool {
     string  calldata ipfsDescriptionHash
   ) external onlyCoverContract {
 
-    require(_initialPoolFee <= _maxPoolFee, "StakingPool: Pool fee should not exceed max pool fee");
-    require(_maxPoolFee < 100, "StakingPool: Max pool fee cannot be 100%");
+    if (_initialPoolFee > _maxPoolFee) {
+      revert PoolFeeExceedsMaxPoolFee();
+    }
+
+    if (_maxPoolFee >= 100) {
+      revert InvalidMaxPoolFee();
+    }
 
     isPrivatePool = _isPrivatePool;
     poolFee = uint8(_initialPoolFee);
@@ -340,22 +349,29 @@ contract StakingPool is IStakingPool {
     address destination
   ) public returns (uint tokenId) {
 
-    if (isPrivatePool) {
-      require(
-        msg.sender == coverContract || msg.sender == manager(),
-        "StakingPool: The pool is private"
-      );
+    if (isPrivatePool && msg.sender != coverContract && msg.sender != manager()) {
+      revert PoolIsPrivate();
     }
 
-    require(block.timestamp > nxm.isLockedForMV(msg.sender), "Staking: NXM is locked for voting in governance");
+    if (block.timestamp <= nxm.isLockedForMV(msg.sender)) {
+      revert LockedForGovernanceVoting(msg.sender);
+    }
 
     {
       uint _firstActiveTrancheId = block.timestamp / TRANCHE_DURATION;
       uint maxTranche = _firstActiveTrancheId + MAX_ACTIVE_TRANCHES - 1;
 
-      require(amount > 0, "StakingPool: Insufficient deposit amount");
-      require(trancheId <= maxTranche, "StakingPool: Requested tranche is not yet active");
-      require(trancheId >= _firstActiveTrancheId, "StakingPool: Requested tranche has expired");
+      if (amount == 0) {
+        revert InsufficientDepositAmount();
+      }
+
+      if (trancheId > maxTranche) {
+        revert TrancheNotActive(trancheId);
+      }
+
+      if (trancheId < _firstActiveTrancheId) {
+        revert TrancheExpired(trancheId);
+      }
 
       // if the pool has no previous deposits
       if (firstActiveTrancheId == 0) {
@@ -531,10 +547,9 @@ contract StakingPool is IStakingPool {
 
         // Deposit withdrawals are not permitted while the manager is locked in governance to
         // prevent double voting.
-        require(
-          managerLockedInGovernanceUntil < block.timestamp,
-          "StakingPool: While the pool manager is locked for governance voting only rewards can be withdrawn"
-        );
+        if (block.timestamp < managerLockedInGovernanceUntil) {
+          revert LockedForGovernanceVoting(manager());
+        }
 
         // calculate the amount of nxm for this deposit
         uint stake = expiredTranches[trancheId].stakeAmountAtExpiry;
@@ -627,7 +642,10 @@ contract StakingPool is IStakingPool {
 
     // add new rewards
     {
-      require(request.rewardRatio <= REWARDS_DENOMINATOR, "StakingPool: reward ratio exceeds denominator");
+
+      if (request.rewardRatio > REWARDS_DENOMINATOR) {
+        revert InvalidRewardRatio();
+      }
 
       uint expirationBucket = Math.divCeil(block.timestamp + request.period, BUCKET_DURATION);
       uint rewardStreamPeriod = expirationBucket * BUCKET_DURATION - block.timestamp;
@@ -817,11 +835,10 @@ contract StakingPool is IStakingPool {
     uint reductionRatio
   ) internal view returns (uint[] memory trancheCapacities) {
 
-    // TODO: this require statement seems redundant
-    require(
-      firstTrancheId >= block.timestamp / TRANCHE_DURATION,
-      "StakingPool: requested tranche has expired"
-    );
+    // TODO: this check seems redundant
+    if (firstTrancheId < block.timestamp / TRANCHE_DURATION) {
+      revert TrancheExpired(firstTrancheId);
+    }
 
     uint _activeStake = activeStake;
     uint _stakeSharesSupply = stakeSharesSupply;
@@ -897,7 +914,9 @@ contract StakingPool is IStakingPool {
       remainingAmount -= allocatedAmount;
     }
 
-    require(remainingAmount == 0, "StakingPool: Insufficient capacity");
+    if (remainingAmount != 0) {
+      revert InsufficientCapacity();
+    }
 
     updateExpiringCoverAmounts(
       request.productId,
@@ -1012,18 +1031,31 @@ contract StakingPool is IStakingPool {
     uint topUpAmount
   ) external {
 
-    require(isApprovedOrOwner(msg.sender, tokenId), "StakingPool: Not token owner or approved");
+    if (!isApprovedOrOwner(msg.sender, tokenId)) {
+      revert NotTokenOwnerOrApproved(msg.sender, tokenId);
+    }
 
     uint _firstActiveTrancheId = block.timestamp / TRANCHE_DURATION;
 
     {
       // token id 0 is only used for pool manager fee tracking, no deposits allowed
-      require(tokenId != 0, "StakingPool: Invalid token id");
-      require(initialTrancheId < newTrancheId, "StakingPool: The chosen tranche cannot end before the initial one");
+      if (tokenId == 0) {
+        revert InvalidTokenId();
+      }
+
+      if (newTrancheId <= initialTrancheId) {
+        revert TrancheNotGreaterThanCurrent(initialTrancheId, newTrancheId);
+      }
 
       uint maxTrancheId = _firstActiveTrancheId + MAX_ACTIVE_TRANCHES - 1;
-      require(newTrancheId <= maxTrancheId, "StakingPool: The tranche is not yet available");
-      require(newTrancheId >= _firstActiveTrancheId, "StakingPool: The tranche has already expired");
+
+      if (newTrancheId > maxTrancheId) {
+        revert TrancheNotActive(newTrancheId);
+      }
+
+      if (newTrancheId < _firstActiveTrancheId) {
+        revert TrancheExpired(newTrancheId);
+      }
     }
 
     // if the initial tranche is expired, withdraw everything and make a new deposit
@@ -1046,11 +1078,8 @@ contract StakingPool is IStakingPool {
       // done! skip the rest of the function.
     }
 
-    if (isPrivatePool) {
-      require(
-        msg.sender == coverContract || msg.sender == manager(),
-        "StakingPool: The pool is private"
-      );
+    if (isPrivatePool && msg.sender != manager()) {
+      revert PoolIsPrivate();
     }
 
     // if we got here - the initial tranche is still active. move all the shares to the new tranche
@@ -1183,11 +1212,12 @@ contract StakingPool is IStakingPool {
     uint[] memory productIds = new uint[](numProducts);
 
     for (uint i = 0; i < numProducts; i++) {
+
+      if (!ICover(coverContract).isPoolAllowed(params[i].productId, poolId)) {
+        revert PoolNotAllowed(params[i].productId);
+      }
+
       productIds[i] = params[i].productId;
-      require(
-        ICover(coverContract).isPoolAllowed(params[i].productId, poolId),
-        "StakingPool: Pool is not allowed for this product"
-      );
     }
 
     (
@@ -1207,36 +1237,52 @@ contract StakingPool is IStakingPool {
 
       // if this is a new product
       if (_product.nextPriceUpdateTime == 0) {
+
         // initialize the nextPrice
         _product.nextPrice = initialPriceRatios[i].toUint96();
         _product.nextPriceUpdateTime = uint32(block.timestamp);
+
         // and make sure we set the price and the target weight
-        require(_param.setTargetPrice, "StakingPool: Must set price for new products");
-        require(_param.setTargetWeight, "StakingPool: Must set weight for new products");
+        if (!_param.setTargetPrice) {
+          revert ProductTargetPriceNotSet(_param.productId);
+        }
+
+        if (!_param.setTargetWeight) {
+          revert ProductTargetWeightNotSet(_param.productId);
+        }
       }
 
       if (_param.setTargetPrice) {
-        require(_param.targetPrice <= TARGET_PRICE_DENOMINATOR, "StakingPool: Target price too high");
-        require(_param.targetPrice >= globalMinPriceRatio, "StakingPool: Target price below GLOBAL_MIN_PRICE_RATIO");
+
+        if (_param.targetPrice > TARGET_PRICE_DENOMINATOR) {
+          revert ProductTargetPriceTooHigh();
+        }
+
+        if (_param.targetPrice < globalMinPriceRatio) {
+          revert ProductTargetPriceTooLow();
+        }
+
         _product.targetPrice = _param.targetPrice;
       }
 
-      require(
-        // if setTargetWeight is set - effective weight must be recalculated
-        !_param.setTargetWeight || _param.recalculateEffectiveWeight,
-        "StakingPool: Must recalculate effectiveWeight to edit targetWeight"
-      );
+      if (_param.setTargetWeight && !_param.recalculateEffectiveWeight) {
+        revert EffectiveWeightRecalculationRequired();
+      }
 
       // Must recalculate effectiveWeight to adjust targetWeight
       if (_param.recalculateEffectiveWeight) {
 
         if (_param.setTargetWeight) {
-          require(_param.targetWeight <= WEIGHT_DENOMINATOR, "StakingPool: Cannot set weight beyond 1");
+
+          if (_param.targetWeight > WEIGHT_DENOMINATOR) {
+            revert ProductTargetWeightTooHigh();
+          }
 
           // totalEffectiveWeight cannot be above the max unless target  weight is not increased
           if (!targetWeightIncreased) {
             targetWeightIncreased = _param.targetWeight > _product.targetWeight;
           }
+
           _totalTargetWeight = _totalTargetWeight - _product.targetWeight + _param.targetWeight;
           _product.targetWeight = _param.targetWeight;
         }
@@ -1259,10 +1305,12 @@ contract StakingPool is IStakingPool {
       products[_param.productId] = _product;
     }
 
-    require(_totalTargetWeight <= MAX_TOTAL_WEIGHT, "StakingPool: Max total target weight exceeded");
+    if (_totalTargetWeight > MAX_TOTAL_WEIGHT) {
+      revert MaxTotalTargetWeightExceeded();
+    }
 
-    if (targetWeightIncreased) {
-      require(_totalEffectiveWeight <= MAX_TOTAL_WEIGHT, "StakingPool: Total max effective weight exceeded");
+    if (targetWeightIncreased && _totalEffectiveWeight > MAX_TOTAL_WEIGHT) {
+      revert MaxTotalEffectiveWeightExceeded();
     }
 
     totalTargetWeight = _totalTargetWeight.toUint32();
@@ -1303,8 +1351,15 @@ contract StakingPool is IStakingPool {
     for (uint i = 0; i < params.length; i++) {
       ProductInitializationParams memory param = params[i];
       StakedProduct storage _product = products[param.productId];
-      require(param.targetPrice <= TARGET_PRICE_DENOMINATOR, "StakingPool: Target price too high");
-      require(param.weight <= WEIGHT_DENOMINATOR, "StakingPool: Cannot set weight beyond 1");
+
+      if (param.targetPrice > TARGET_PRICE_DENOMINATOR) {
+        revert ProductTargetPriceTooHigh();
+      }
+
+      if (param.weight > WEIGHT_DENOMINATOR) {
+        revert ProductTargetWeightTooHigh();
+      }
+
       _product.nextPrice = param.initialPrice;
       _product.nextPriceUpdateTime = uint32(block.timestamp);
       _product.targetPrice = param.targetPrice;
@@ -1312,14 +1367,20 @@ contract StakingPool is IStakingPool {
       _totalTargetWeight += param.weight;
     }
 
-    require(_totalTargetWeight <= MAX_TOTAL_WEIGHT, "StakingPool: Total max target weight exceeded");
+    if (_totalTargetWeight > MAX_TOTAL_WEIGHT) {
+      revert MaxTotalTargetWeightExceeded();
+    }
+
     totalTargetWeight = _totalTargetWeight;
     totalEffectiveWeight = totalTargetWeight;
   }
 
   function setPoolFee(uint newFee) external onlyManager {
 
-    require(newFee <= maxPoolFee, "StakingPool: new fee exceeds max fee");
+    if (newFee > maxPoolFee) {
+      revert PoolFeeExceedsMaxPoolFee();
+    }
+
     uint oldFee = poolFee;
     poolFee = uint8(newFee);
 
