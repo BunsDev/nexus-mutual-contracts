@@ -30,7 +30,7 @@ const productTypes = [
     productType: {
       descriptionIpfsHash: 'protocolCoverIPFSHash',
       claimMethod: claimMethod.claim,
-      gracePeriodInDays: 30,
+      gracePeriod: 30 * 24 * 3600,
     },
   },
   {
@@ -39,7 +39,7 @@ const productTypes = [
     productType: {
       descriptionIpfsHash: 'custodyCoverIPFSHash',
       claimMethod: claimMethod.claim,
-      gracePeriodInDays: 90,
+      gracePeriod: 90 * 24 * 3600,
     },
   },
   {
@@ -48,7 +48,7 @@ const productTypes = [
     productType: {
       descriptionIpfsHash: 'yieldTokenCoverIPFSHash',
       claimMethod: claimMethod.incident,
-      gracePeriodInDays: 14,
+      gracePeriod: 14 * 24 * 3600,
     },
   },
 ];
@@ -325,7 +325,6 @@ async function main() {
   console.log('Add covered products');
   await cover.changeMasterAddress(master.address);
   await cover.changeDependentContractAddress();
-
   await cover.setProductTypes(productTypes);
 
   const addProductsParams = products.map(product => {
@@ -352,13 +351,12 @@ async function main() {
         capacityReductionRatio: 0,
       },
       ipfsMetadata: '',
+      allowedPools: [],
     };
   });
-
   // 0b01 for eth and 0b10 for dai
   const coverAssetsFallback = 0b11;
   await cover.setCoverAssetsFallback(coverAssetsFallback);
-
   await cover.setProducts(addProductsParams);
 
   console.log('Adding proposal categories');
@@ -433,6 +431,7 @@ async function main() {
     productInitializationParams,
     depositAmount,
     trancheId,
+    '',
   );
 
   await stakingPool.setStake(productId, parseEther('10000'));
@@ -463,12 +462,21 @@ async function main() {
   if (verifyOnTenderly) {
     console.log('Performing tenderly contract verifications');
     const contracts = Object.values(verifier.contracts());
-    const contractList = contracts.map(({ name, address, libraries }) => ({
-      name: name.split(':').pop(),
+    const contractList = contracts.map(({ abiName, address, libraries }) => ({
+      name: abiName,
       address,
       libraries,
     }));
-    await tenderly.verify(...contractList);
+    const data = JSON.stringify(contractList, null, 2);
+    fs.writeFileSync('/tmp/contractList.json', data);
+    for (const i in contractList) {
+      const contracts = [contractList[i]];
+      if (contracts[0].libraries) {
+        contracts.unshift(...contracts[0].libraries);
+      }
+      await tenderly.verify(...contracts);
+    }
+    await Promise.all(contractList.map(contract => tenderly.verify(contract)));
   }
 
   if (!verifyOnTenderly && !verifyOnEtherscan) {
