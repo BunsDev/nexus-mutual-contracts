@@ -37,6 +37,7 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
 
   uint public constant MAX_COVER_PERIOD = 364 days;
   uint private constant MIN_COVER_PERIOD = 28 days;
+  uint public constant BUCKET_SIZE = 7 days;
   // this constant is used for calculating the normalized yearly percentage cost of cover
   uint private constant ONE_YEAR = 365 days;
 
@@ -91,7 +92,10 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
   // Eg. coverAssetsFallback = 3 (in binary 11) means assets at index 0 and 1 are supported.
   uint32 public coverAssetsFallback;
 
-  // TODO: implement using buckets
+  // The last time activeCoverExpirationBuckets was updated
+  uint public lastBucketUpdateId;
+  // assetId => bucketId => coverExpiring
+  mapping(uint24 => mapping(uint => uint)) public activeCoverExpirationBuckets;
   // Global active cover amount per asset.
   mapping(uint24 => uint) public override totalActiveCoverInAsset;
 
@@ -122,6 +126,7 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
     globalCapacityRatio = 20000; // x2
     globalRewardsRatio = 5000; // 50%
     coverAssetsFallback = 3; // 0x11 - DAI and ETH
+    lastBucketUpdateId = block.timestamp / BUCKET_SIZE;
   }
 
   /* === MUTATIVE FUNCTIONS ==== */
@@ -201,7 +206,6 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
     BuyCoverParams memory params,
     PoolAllocationRequest[] memory poolAllocationRequests
   ) external payable onlyMember nonReentrant whenNotPaused returns (uint coverId) {
-
     require(params.period >= MIN_COVER_PERIOD, "Cover: Cover period is too short");
     require(params.period <= MAX_COVER_PERIOD, "Cover: Cover period is too long");
     require(params.commissionRatio <= MAX_COMMISSION_RATIO, "Cover: Commission rate is too high");
@@ -238,6 +242,8 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
       );
     }
 
+    uint expiredCoverAmount;
+
     if (params.coverId == type(uint).max) {
 
       // new cover
@@ -267,6 +273,11 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
 
       // mark previous cover as ending now
       _coverSegments[coverId][segmentId - 1].period = (block.timestamp - lastSegment.start).toUint32();
+
+      // remove cover amount from from expiration buckets
+      uint bucketAtExpiry = Math.divCeil(lastSegment.start + lastSegment.period, BUCKET_SIZE);
+      activeCoverExpirationBuckets[params.coverAsset][bucketAtExpiry] -= lastSegment.amount;
+      expiredCoverAmount += lastSegment.amount;
     }
 
     allocationRequest.coverId = coverId;
@@ -290,8 +301,15 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
       )
     );
 
-    // TODO: implement using buckets
-    totalActiveCoverInAsset[params.coverAsset] += coverAmountInCoverAsset;
+    // Update totalActiveCover
+    uint currentBucketId = block.timestamp / BUCKET_SIZE;
+    // TODO: delete expired buckets?
+    expiredCoverAmount += getExpiredCoverAmount(params.coverAsset, lastBucketUpdateId, currentBucketId);
+    lastBucketUpdateId = currentBucketId;
+    totalActiveCoverInAsset[params.coverAsset] = totalActiveCoverInAsset[params.coverAsset] + coverAmountInCoverAsset - expiredCoverAmount;
+    // Update expirationBuckets
+    uint bucketAtExpiry = Math.divCeil(block.timestamp + 1 + params.period, BUCKET_SIZE);
+    activeCoverExpirationBuckets[params.coverAsset][bucketAtExpiry] += coverAmountInCoverAsset;
 
     if (amountDueInNXM > 0) {
       retrievePayment(
@@ -374,6 +392,14 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
     totalCoverAmountInCoverAsset = totalCoverAmountInNXM * nxmPriceInCoverAsset / ONE_NXM;
 
     return (totalCoverAmountInCoverAsset, totalAmountDueInNXM);
+  }
+
+  function getExpiredCoverAmount(uint24 coverAsset, uint bucketIdStart, uint bucketIdEnd) public view returns (uint amountExpired) {
+    while (bucketIdStart <= bucketIdEnd) {
+      amountExpired += activeCoverExpirationBuckets[coverAsset][bucketIdStart];
+      bucketIdStart++;
+    }
+    return amountExpired;
   }
 
   function retrievePayment(

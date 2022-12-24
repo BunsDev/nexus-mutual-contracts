@@ -165,9 +165,9 @@ async function setup() {
 
   await master.setEmergencyAdmin(accounts.emergencyAdmin.address);
 
+  await cover.initialize();
   const capacityFactor = '10000';
   const coverAssetsFallback = 0b111; // ETH, DAI and USDC
-
   await cover
     .connect(accounts.governanceContracts[0])
     .updateUintParameters([0, 2], [capacityFactor, coverAssetsFallback]);
@@ -215,7 +215,10 @@ async function setup() {
     },
   ]);
 
-  const GLOBAL_MIN_PRICE_RATIO = await cover.GLOBAL_MIN_PRICE_RATIO();
+  const [GLOBAL_MIN_PRICE_RATIO, BUCKET_SIZE] = await Promise.all([
+    cover.GLOBAL_MIN_PRICE_RATIO(),
+    cover.BUCKET_SIZE(),
+  ]);
 
   this.master = master;
   this.pool = pool;
@@ -237,6 +240,7 @@ async function setup() {
   this.productsV1 = ethers.constants.AddressZero;
   this.config = {
     GLOBAL_MIN_PRICE_RATIO,
+    BUCKET_SIZE,
   };
 }
 
