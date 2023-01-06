@@ -4,14 +4,14 @@ pragma solidity ^0.5.0;
 
 contract MCRMockCover {
 
-  mapping(uint24 => uint) public sumAssuredByAsset;
+  mapping(uint => uint) public sumAssuredByAsset;
 
 
-  function totalActiveCoverInAsset(uint24 coverAsset) external view returns (uint) {
+  function totalActiveCoverInAsset(uint coverAsset) external view returns (uint) {
     return sumAssuredByAsset[coverAsset];
   }
 
-  function setTotalActiveCoverInAsset(uint24 asset, uint amount) public {
+  function setTotalActiveCoverInAsset(uint asset, uint amount) public {
     sumAssuredByAsset[asset] = amount;
   }
 

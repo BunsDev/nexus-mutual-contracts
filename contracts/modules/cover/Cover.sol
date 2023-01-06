@@ -92,12 +92,10 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
   // Eg. coverAssetsFallback = 3 (in binary 11) means assets at index 0 and 1 are supported.
   uint32 public coverAssetsFallback;
 
-  // The last time activeCoverExpirationBuckets was updated
-  uint public lastBucketUpdateId;
-  // assetId => bucketId => coverExpiring
-  mapping(uint24 => mapping(uint => uint)) public activeCoverExpirationBuckets;
-  // Global active cover amount per asset.
-  mapping(uint24 => uint) public override totalActiveCoverInAsset;
+  // assetId => { lastBucketUpdateId, totalActiveCoverInAsset }
+  mapping (uint => ActiveCover) public activeCover;
+  // assetId => bucketId => amount
+  mapping(uint => mapping(uint => uint)) public activeCoverExpirationBuckets;
 
   /* ========== CONSTRUCTOR ========== */
 
@@ -126,7 +124,12 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
     globalCapacityRatio = 20000; // x2
     globalRewardsRatio = 5000; // 50%
     coverAssetsFallback = 3; // 0x11 - DAI and ETH
-    lastBucketUpdateId = block.timestamp / BUCKET_SIZE;
+    uint64 bucketIdStart = (block.timestamp / BUCKET_SIZE).toUint64();
+    uint assetId;
+    while (assetId <= coverAssetsFallback) {
+      activeCover[assetId].lastBucketUpdateId = bucketIdStart;
+      ++assetId;
+    }
   }
 
   /* === MUTATIVE FUNCTIONS ==== */
@@ -301,15 +304,35 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
       )
     );
 
+
     // Update totalActiveCover
-    uint currentBucketId = block.timestamp / BUCKET_SIZE;
-    // TODO: delete expired buckets?
-    expiredCoverAmount += getExpiredCoverAmount(params.coverAsset, lastBucketUpdateId, currentBucketId);
-    lastBucketUpdateId = currentBucketId;
-    totalActiveCoverInAsset[params.coverAsset] = totalActiveCoverInAsset[params.coverAsset] + coverAmountInCoverAsset - expiredCoverAmount;
-    // Update expirationBuckets
-    uint bucketAtExpiry = Math.divCeil(block.timestamp + 1 + params.period, BUCKET_SIZE);
-    activeCoverExpirationBuckets[params.coverAsset][bucketAtExpiry] += coverAmountInCoverAsset;
+    {
+      uint currentBucketId = block.timestamp / BUCKET_SIZE;
+
+      ActiveCover storage _activeCover = activeCover[params.coverAsset];
+      uint lastUpdateId = _activeCover.lastBucketUpdateId;
+
+      if (currentBucketId != lastUpdateId) {
+        // Expire active cover amount up to current block
+        while (lastUpdateId <= currentBucketId) {
+
+          if (activeCoverExpirationBuckets[params.coverAsset][lastUpdateId] != 0) {
+            expiredCoverAmount += activeCoverExpirationBuckets[params.coverAsset][lastUpdateId];
+            delete activeCoverExpirationBuckets[params.coverAsset][lastUpdateId];
+          }
+
+          ++lastUpdateId;
+        }
+        _activeCover.lastBucketUpdateId = currentBucketId.toUint64();
+      }
+      // Update total active cover in storage
+      _activeCover.totalActiveCoverInAsset = (_activeCover.totalActiveCoverInAsset + coverAmountInCoverAsset - expiredCoverAmount).toUint192();
+
+      // Update expirationBuckets
+      uint bucketAtExpiry = Math.divCeil(block.timestamp + params.period, BUCKET_SIZE);
+      activeCoverExpirationBuckets[params.coverAsset][bucketAtExpiry] += coverAmountInCoverAsset;
+    }
+
 
     if (amountDueInNXM > 0) {
       retrievePayment(
@@ -392,14 +415,6 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
     totalCoverAmountInCoverAsset = totalCoverAmountInNXM * nxmPriceInCoverAsset / ONE_NXM;
 
     return (totalCoverAmountInCoverAsset, totalAmountDueInNXM);
-  }
-
-  function getExpiredCoverAmount(uint24 coverAsset, uint bucketIdStart, uint bucketIdEnd) public view returns (uint amountExpired) {
-    while (bucketIdStart <= bucketIdEnd) {
-      amountExpired += activeCoverExpirationBuckets[coverAsset][bucketIdStart];
-      bucketIdStart++;
-    }
-    return amountExpired;
   }
 
   function retrievePayment(
@@ -682,6 +697,10 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
   }
 
   /* ========== COVER ASSETS HELPERS ========== */
+
+  function totalActiveCoverInAsset(uint assetId) public view returns (uint) {
+    return uint(activeCover[uint(assetId)].totalActiveCoverInAsset);
+  }
 
   function getSupportedCoverAssets(uint productId) public view returns (uint32) {
     return _getSupportedCoverAssets(pool().deprecatedCoverAssetsBitmap(), _products[productId].coverAssets);

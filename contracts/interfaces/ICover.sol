@@ -113,6 +113,13 @@ struct ProductType {
   uint32 gracePeriod;
 }
 
+struct ActiveCover {
+  // Global active cover amount per asset.
+  uint192 totalActiveCoverInAsset;
+  // The last time activeCoverExpirationBuckets was updated
+  uint64 lastBucketUpdateId;
+}
+
 interface ICover {
 
   /* ========== VIEWS ========== */
@@ -139,7 +146,7 @@ interface ICover {
 
   function MAX_COVER_PERIOD() external view returns (uint);
 
-  function totalActiveCoverInAsset(uint24 coverAsset) external view returns (uint);
+  function totalActiveCoverInAsset(uint coverAsset) external view returns (uint);
 
   function globalCapacityRatio() external view returns (uint24);
 
