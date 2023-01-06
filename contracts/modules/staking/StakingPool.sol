@@ -12,7 +12,6 @@ import "../../libraries/Math.sol";
 import "../../libraries/UncheckedMath.sol";
 import "../../libraries/SafeUintCast.sol";
 import "./StakingTypesLib.sol";
-import "hardhat/console.sol";
 
 // total stake = active stake + expired stake
 // total capacity = active stake * global capacity factor
@@ -910,11 +909,9 @@ contract StakingPool is IStakingPool {
         trancheAllocations[i] += allocatedAmount;
         remainingAmount -= allocatedAmount;
 
-        console.log("adding allocatedAmount %s for i = %s", allocatedAmount, i);
         packedCoverAllocations |= allocatedAmount << i * 32;
       }
 
-      console.log(packedCoverAllocations);
       coverTrancheAllocations[allocationId] = packedCoverAllocations;
 
       require(remainingAmount == 0, "StakingPool: Insufficient capacity");
