@@ -186,7 +186,7 @@ async function setup() {
   const spf = await StakingPoolFactory.deploy(expectedCoverAddress);
 
   const tc = await deployProxy('DisposableTokenController', [qd.address, lcr.address, spf.address]);
-  const stakingPool = await StakingPool.deploy(stakingNFT.address, tk.address, expectedCoverAddress, tc.address);
+  const stakingPool = await StakingPool.deploy(stakingNFT.address, tk.address, expectedCoverAddress, tc.address, master.address);
 
   let cover = await deployProxy('DisposableCover', [
     coverNFT.address,

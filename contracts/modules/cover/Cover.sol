@@ -372,7 +372,6 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
 
     ProductType memory productType = _productTypes[_products[productId].productType];
 
-    // TODO: consider using v1 grace period
     require(
       block.timestamp < start + period + productType.gracePeriod,
       "Cover outside of the grace period"
@@ -429,7 +428,7 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
     uint maxPoolFee,
     ProductInitializationParams[] memory productInitParams,
     string calldata ipfsDescriptionHash
-  ) external returns (address) {
+  ) external whenNotPaused returns (address) {
 
     if (msg.sender != master.getLatestAddress("PS")) {
 
