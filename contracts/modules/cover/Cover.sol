@@ -307,28 +307,16 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
 
     // Update totalActiveCover
     {
-      uint currentBucketId = block.timestamp / BUCKET_SIZE;
-
       ActiveCover storage _activeCover = activeCover[params.coverAsset];
       uint lastUpdateId = _activeCover.lastBucketUpdateId;
-
-      if (currentBucketId != lastUpdateId) {
-        // Expire active cover amount up to current block
-        while (lastUpdateId <= currentBucketId) {
-
-          if (activeCoverExpirationBuckets[params.coverAsset][lastUpdateId] != 0) {
-            expiredCoverAmount += activeCoverExpirationBuckets[params.coverAsset][lastUpdateId];
-            delete activeCoverExpirationBuckets[params.coverAsset][lastUpdateId];
-          }
-
-          ++lastUpdateId;
-        }
-        _activeCover.lastBucketUpdateId = currentBucketId.toUint64();
-      }
+      uint currentBucketId = block.timestamp / BUCKET_SIZE;
+      _activeCover.lastBucketUpdateId = currentBucketId.toUint64();
+      // Get expired cover amount
+      expiredCoverAmount += expireActiveCoverBuckets(params.coverAsset, lastUpdateId, currentBucketId);
       // Update total active cover in storage
       _activeCover.totalActiveCoverInAsset = (_activeCover.totalActiveCoverInAsset + coverAmountInCoverAsset - expiredCoverAmount).toUint192();
 
-      // Update expirationBuckets
+      // Update amount to expire at the end of this cover segment
       uint bucketAtExpiry = Math.divCeil(block.timestamp + params.period, BUCKET_SIZE);
       activeCoverExpirationBuckets[params.coverAsset][bucketAtExpiry] += coverAmountInCoverAsset;
     }
@@ -537,6 +525,27 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
     return stakingPoolAddress;
   }
 
+  // Remove any expired buckets and reduce totalActiveCover
+  function expireActiveCoverBuckets(uint8 coverAsset, uint lastUpdateId, uint currentBucketId) internal returns (uint amountExpired) {
+
+    // If the last update was before the current bucket, expire past buckets
+    if (currentBucketId != lastUpdateId) {
+
+      // Expire active cover amount up to the current block
+      while (lastUpdateId <= currentBucketId) {
+
+        // Delete any expired buckets that have value
+        if (activeCoverExpirationBuckets[coverAsset][lastUpdateId] != 0) {
+          amountExpired += activeCoverExpirationBuckets[coverAsset][lastUpdateId];
+          delete activeCoverExpirationBuckets[coverAsset][lastUpdateId];
+        }
+
+        ++lastUpdateId;
+      }
+    }
+    return amountExpired;
+  }
+
   function burnStake(
     uint coverId,
     uint segmentId,
@@ -546,9 +555,28 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
     CoverData storage cover =_coverData[coverId];
     CoverSegment memory segment = coverSegments(coverId, segmentId);
     PoolAllocation[] storage allocations = coverSegmentAllocations[coverId][segmentId];
+    ActiveCover storage _activeCover = activeCover[cover.coverAsset];
 
-    // TODO: implement using buckets
-    // totalActiveCoverInAsset[cover.coverAsset] -= burnAmount;
+    // Update expired buckets
+    {
+      uint lastUpdateId = _activeCover.lastBucketUpdateId;
+      uint currentBucketId = block.timestamp / BUCKET_SIZE;
+      _activeCover.lastBucketUpdateId = currentBucketId.toUint64();
+      uint expiredCoverAmount = expireActiveCoverBuckets(cover.coverAsset, lastUpdateId, currentBucketId);
+      // Reduce total active cover
+      uint burnSegmentBucketId = Math.divCeil((segment.start + segment.period), BUCKET_SIZE);
+      uint amountToBurn = (expiredCoverAmount + burnAmount);
+
+      // TODO: how to handle claims that come after cover segment has expired
+      _activeCover.totalActiveCoverInAsset = amountToBurn > _activeCover.totalActiveCoverInAsset
+        ? 0
+        : _activeCover.totalActiveCoverInAsset - amountToBurn.toUint192();
+
+      // Reduce future expiration of this segment
+      activeCoverExpirationBuckets[cover.coverAsset][burnSegmentBucketId] = burnAmount > activeCoverExpirationBuckets[cover.coverAsset][burnSegmentBucketId]
+        ? 0
+        : activeCoverExpirationBuckets[cover.coverAsset][burnSegmentBucketId] - burnAmount.toUint192();
+    }
 
     // increase amountPaidOut only *after* you read the segment
     cover.amountPaidOut += SafeUintCast.toUint96(burnAmount);
