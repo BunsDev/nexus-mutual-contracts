@@ -2,6 +2,7 @@
 
 pragma solidity ^0.8.9;
 
+import "hardhat/console.sol";
 import "@openzeppelin/contracts-v4/proxy/beacon/UpgradeableBeacon.sol";
 import "@openzeppelin/contracts-v4/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-v4/token/ERC20/IERC20.sol";
@@ -552,42 +553,44 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
     uint burnAmount
   ) external onlyInternal override returns (address /* owner */) {
 
-    CoverData storage cover =_coverData[coverId];
-    CoverSegment memory segment = coverSegments(coverId, segmentId);
-    PoolAllocation[] storage allocations = coverSegmentAllocations[coverId][segmentId];
+    CoverData storage cover =_coverData[coverId];  // slightly cheaper to use storage pointer
     ActiveCover storage _activeCover = activeCover[cover.coverAsset];
+    CoverSegment memory segment = coverSegments(coverId, segmentId);
 
-    // Update expired buckets
+    // Update expired buckets and calculate the amount of active cover that should be burned
     {
+      uint8 coverAsset = cover.coverAsset;
       uint lastUpdateId = _activeCover.lastBucketUpdateId;
       uint currentBucketId = block.timestamp / BUCKET_SIZE;
       _activeCover.lastBucketUpdateId = currentBucketId.toUint64();
-      uint expiredCoverAmount = expireActiveCoverBuckets(cover.coverAsset, lastUpdateId, currentBucketId);
-      // Reduce total active cover
-      uint burnSegmentBucketId = Math.divCeil((segment.start + segment.period), BUCKET_SIZE);
-      uint amountToBurn = (expiredCoverAmount + burnAmount);
 
-      // TODO: how to handle claims that come after cover segment has expired
-      _activeCover.totalActiveCoverInAsset = amountToBurn > _activeCover.totalActiveCoverInAsset
-        ? 0
-        : _activeCover.totalActiveCoverInAsset - amountToBurn.toUint192();
+      uint expiredCoverAmount = expireActiveCoverBuckets(coverAsset, lastUpdateId, currentBucketId);
+      uint burnedSegmentBucketId = Math.divCeil((segment.start + segment.period), BUCKET_SIZE);
+      uint activeCoverToExpire;
 
-      // Reduce future expiration of this segment
-      activeCoverExpirationBuckets[cover.coverAsset][burnSegmentBucketId] = burnAmount > activeCoverExpirationBuckets[cover.coverAsset][burnSegmentBucketId]
-        ? 0
-        : activeCoverExpirationBuckets[cover.coverAsset][burnSegmentBucketId] - burnAmount.toUint192();
+      // Burn amount is already accounted for if segment has expired
+      if (burnedSegmentBucketId <= currentBucketId) {
+        activeCoverToExpire = expiredCoverAmount;
+      } else {
+        // Segment hasn't expired yet
+        activeCoverToExpire = (expiredCoverAmount + Math.min(burnAmount, segment.amount));
+        activeCoverExpirationBuckets[coverAsset][burnedSegmentBucketId] -= activeCoverToExpire.toUint192();
+      }
+      _activeCover.totalActiveCoverInAsset -= activeCoverToExpire.toUint192();
     }
 
     // increase amountPaidOut only *after* you read the segment
     cover.amountPaidOut += SafeUintCast.toUint96(burnAmount);
 
+    PoolAllocation[] storage allocations = coverSegmentAllocations[coverId][segmentId];
     uint allocationCount = allocations.length;
+
     for (uint i = 0; i < allocationCount; i++) {
 
-      PoolAllocation memory allocation = allocations[i];
+      uint coverAmountInNXM = allocations[i].coverAmountInNXM;
 
       // TODO: use the global capacity ratio that we had at cover buy time
-      uint burnAmountInNXM = allocation.coverAmountInNXM
+      uint burnAmountInNXM = coverAmountInNXM
         * burnAmount
         * GLOBAL_CAPACITY_DENOMINATOR
         / segment.amount
@@ -595,7 +598,7 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
 
       stakingPool(i).burnStake(burnAmountInNXM);
 
-      uint payoutAmountInNXM = allocation.coverAmountInNXM * burnAmount / segment.amount;
+      uint payoutAmountInNXM = coverAmountInNXM * burnAmount / segment.amount;
       allocations[i].coverAmountInNXM -= SafeUintCast.toUint96(payoutAmountInNXM);
     }
 
