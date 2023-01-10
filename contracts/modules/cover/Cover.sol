@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.9;
 
-import "hardhat/console.sol";
 import "@openzeppelin/contracts-v4/proxy/beacon/UpgradeableBeacon.sol";
 import "@openzeppelin/contracts-v4/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts-v4/token/ERC20/IERC20.sol";
@@ -553,7 +552,7 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
     uint burnAmount
   ) external onlyInternal override returns (address /* owner */) {
 
-    CoverData storage cover =_coverData[coverId];  // slightly cheaper to use storage pointer
+    CoverData storage cover =_coverData[coverId];
     ActiveCover storage _activeCover = activeCover[cover.coverAsset];
     CoverSegment memory segment = coverSegments(coverId, segmentId);
 

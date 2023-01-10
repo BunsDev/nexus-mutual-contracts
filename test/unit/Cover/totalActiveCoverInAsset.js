@@ -73,22 +73,7 @@ describe('totalActiveCoverInAsset', function () {
     expect(totalActiveCoverInAsset).to.equal(amount);
   });
 
-  it('should compute active cover amount for NXM correctly after cover purchase', async function () {
-    const { cover } = this;
-    const { BUCKET_SIZE } = this.config;
-
-    const { coverAsset, amount } = daiCoverBuyFixture;
-
-    await buyCoverOnOnePool.call(this, daiCoverBuyFixture);
-
-    const { timestamp } = await ethers.provider.getBlock('latest');
-    const currentBucketId = Math.floor(timestamp / BUCKET_SIZE);
-    const { lastBucketUpdateId, totalActiveCoverInAsset } = await cover.activeCover(coverAsset);
-    expect(lastBucketUpdateId).to.be.equal(currentBucketId);
-    expect(totalActiveCoverInAsset).to.be.equal(amount);
-  });
-
-  it('should initialize active cover tracking variables', async function () {
+  it('should initialize all active cover tracking variables', async function () {
     const { cover } = this;
     const { BUCKET_SIZE } = this.config;
     const { timestamp: initialTimestamp } = await ethers.provider.getBlock('latest');
@@ -222,7 +207,7 @@ describe('totalActiveCoverInAsset', function () {
     expect(await cover.totalActiveCoverInAsset(coverAsset)).to.be.equal(0);
   });
 
-  it('should decrease active cover by 1 nxm, and not cause rounding issues', async function () {
+  it('should decrease active cover by 1 WEI, and not cause rounding issues', async function () {
     const { cover } = this;
     const [internalContract] = this.accounts.internalContracts;
 
