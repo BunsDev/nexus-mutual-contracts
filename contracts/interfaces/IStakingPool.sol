@@ -117,14 +117,6 @@ interface IStakingPool {
 
   function manager() external view returns (address);
 
-  function getActiveStake() external view returns (uint);
-
-  function getProductStake(uint productId, uint coverExpirationDate) external view returns (uint);
-
-  function getFreeProductStake(uint productId, uint coverExpirationDate) external view returns (uint);
-
-  function getAllocatedProductStake(uint productId) external view returns (uint);
-
     /* ========== EVENTS ========== */
 
   event StakeDeposited(address indexed user, uint256 amount, uint256 trancheId, uint256 tokenId);

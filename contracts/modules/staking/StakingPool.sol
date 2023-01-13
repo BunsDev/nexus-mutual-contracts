@@ -1011,132 +1011,132 @@ contract StakingPool is IStakingPool {
     }
   }
 
-  /// Extends the period of an existing deposit until a tranche that ends further into the future
-  ///
-  /// @param tokenId           The id of the NFT that proves the ownership of the deposit.
-  /// @param initialTrancheId  The id of the tranche the deposit is already a part of.
-  /// @param newTrancheId      The id of the new tranche determining the new deposit period.
-  /// @param topUpAmount       An optional amount if the user wants to also increase the deposit
+//  /// Extends the period of an existing deposit until a tranche that ends further into the future
+//  ///
+//  /// @param tokenId           The id of the NFT that proves the ownership of the deposit.
+//  /// @param initialTrancheId  The id of the tranche the deposit is already a part of.
+//  /// @param newTrancheId      The id of the new tranche determining the new deposit period.
+//  /// @param topUpAmount       An optional amount if the user wants to also increase the deposit
   function extendDeposit(
-    uint tokenId,
-    uint initialTrancheId,
-    uint newTrancheId,
-    uint topUpAmount
+    uint /*tokenId*/,
+    uint /*initialTrancheId*/,
+    uint /*newTrancheId*/,
+    uint /*topUpAmount*/
   ) external whenNotPaused {
 
-    // token id MAX_UINT is only used for pool manager fee tracking, no deposits allowed
-    require(tokenId != MAX_UINT, "StakingPool: Invalid token id");
-    require(stakingNFT.isApprovedOrOwner(msg.sender, tokenId), "StakingPool: Not token owner or approved");
-
-    uint _firstActiveTrancheId = block.timestamp / TRANCHE_DURATION;
-
-    {
-      require(initialTrancheId < newTrancheId, "StakingPool: The chosen tranche cannot end before the initial one");
-
-      uint maxTrancheId = _firstActiveTrancheId + MAX_ACTIVE_TRANCHES - 1;
-      require(newTrancheId <= maxTrancheId, "StakingPool: The tranche is not yet available");
-      require(newTrancheId >= _firstActiveTrancheId, "StakingPool: The tranche has already expired");
-    }
-
-    // if the initial tranche is expired, withdraw everything and make a new deposit
-    // this requires the user to have grante sufficient allowance
-    if (initialTrancheId < _firstActiveTrancheId) {
-
-      uint[] memory trancheIds = new uint[](1);
-      trancheIds[0] = initialTrancheId;
-
-      (uint withdrawnStake, /* uint rewardsToWithdraw */) = withdraw(
-        tokenId,
-        true, // withdraw the deposit
-        true, // withdraw the rewards
-        trancheIds
-      );
-
-      depositTo(withdrawnStake + topUpAmount, newTrancheId, tokenId, msg.sender);
-
-      return;
-      // done! skip the rest of the function.
-    }
-
-    if (isPrivatePool) {
-      require(msg.sender == manager, "StakingPool: The pool is private");
-    }
-
-    // if we got here - the initial tranche is still active. move all the shares to the new tranche
-
-    // passing true because we mint reward shares
-    processExpirations(true);
-
-    Deposit memory initialDeposit = deposits[tokenId][initialTrancheId];
-    Deposit memory updatedDeposit = deposits[tokenId][newTrancheId];
-
-    uint _activeStake = activeStake;
-    uint _stakeSharesSupply = stakeSharesSupply;
-    uint newStakeShares;
-
-    // calculate the new stake shares if there's a deposit top up
-    if (topUpAmount > 0) {
-      newStakeShares = _stakeSharesSupply * topUpAmount / _activeStake;
-      activeStake = _activeStake + topUpAmount;
-    }
-
-    // calculate the new reward shares
-    uint newRewardsShares = calculateNewRewardShares(
-      initialDeposit.stakeShares,
-      newStakeShares,
-      initialTrancheId,
-      newTrancheId,
-      block.timestamp
-    );
-
-    {
-      Tranche memory initialTranche = tranches[initialTrancheId];
-      Tranche memory newTranche = tranches[newTrancheId];
-
-      // move the shares to the new tranche
-      initialTranche.stakeShares -= initialDeposit.stakeShares;
-      initialTranche.rewardsShares -= initialDeposit.rewardsShares;
-      newTranche.stakeShares += initialDeposit.stakeShares + newStakeShares;
-      newTranche.rewardsShares += initialDeposit.rewardsShares + newRewardsShares;
-
-      // store the updated tranches
-      tranches[initialTrancheId] = initialTranche;
-      tranches[newTrancheId] = newTranche;
-    }
-
-    uint _accNxmPerRewardsShare = accNxmPerRewardsShare;
-
-    // if there already is a deposit on the new tranche, calculate its pending rewards
-    if (updatedDeposit.lastAccNxmPerRewardShare != 0) {
-      uint newEarningsPerShare = _accNxmPerRewardsShare.uncheckedSub(updatedDeposit.lastAccNxmPerRewardShare);
-      updatedDeposit.pendingRewards += newEarningsPerShare * updatedDeposit.rewardsShares / ONE_NXM;
-    }
-
-    // calculate the rewards for the deposit being extended and move them to the new deposit
-    {
-      uint newEarningsPerShare = _accNxmPerRewardsShare.uncheckedSub(initialDeposit.lastAccNxmPerRewardShare);
-      updatedDeposit.pendingRewards += newEarningsPerShare * initialDeposit.rewardsShares / ONE_NXM;
-      updatedDeposit.pendingRewards += initialDeposit.pendingRewards;
-    }
-
-    updatedDeposit.lastAccNxmPerRewardShare = _accNxmPerRewardsShare;
-    updatedDeposit.stakeShares += initialDeposit.stakeShares + newStakeShares;
-    updatedDeposit.rewardsShares += initialDeposit.rewardsShares + newRewardsShares;
-
-    // everything is moved, delete the initial deposit
-    delete deposits[tokenId][initialTrancheId];
-
-    // store the new deposit.
-    deposits[tokenId][newTrancheId] = updatedDeposit;
-
-    // update global shares supply
-    stakeSharesSupply = _stakeSharesSupply + newStakeShares;
-    rewardsSharesSupply += newRewardsShares;
-
-    // transfer nxm from the staker and update the pool deposit balance
-    tokenController.depositStakedNXM(msg.sender, topUpAmount, poolId);
-
-    emit DepositExtended(msg.sender, tokenId, initialTrancheId, newTrancheId, topUpAmount);
+//    // token id MAX_UINT is only used for pool manager fee tracking, no deposits allowed
+//    require(tokenId != MAX_UINT, "StakingPool: Invalid token id");
+//    require(stakingNFT.isApprovedOrOwner(msg.sender, tokenId), "StakingPool: Not token owner or approved");
+//
+//    uint _firstActiveTrancheId = block.timestamp / TRANCHE_DURATION;
+//
+//    {
+//      require(initialTrancheId < newTrancheId, "StakingPool: The chosen tranche cannot end before the initial one");
+//
+//      uint maxTrancheId = _firstActiveTrancheId + MAX_ACTIVE_TRANCHES - 1;
+//      require(newTrancheId <= maxTrancheId, "StakingPool: The tranche is not yet available");
+//      require(newTrancheId >= _firstActiveTrancheId, "StakingPool: The tranche has already expired");
+//    }
+//
+//    // if the initial tranche is expired, withdraw everything and make a new deposit
+//    // this requires the user to have grante sufficient allowance
+//    if (initialTrancheId < _firstActiveTrancheId) {
+//
+//      uint[] memory trancheIds = new uint[](1);
+//      trancheIds[0] = initialTrancheId;
+//
+//      (uint withdrawnStake, /* uint rewardsToWithdraw */) = withdraw(
+//        tokenId,
+//        true, // withdraw the deposit
+//        true, // withdraw the rewards
+//        trancheIds
+//      );
+//
+//      depositTo(withdrawnStake + topUpAmount, newTrancheId, tokenId, msg.sender);
+//
+//      return;
+//      // done! skip the rest of the function.
+//    }
+//
+//    if (isPrivatePool) {
+//      require(msg.sender == manager, "StakingPool: The pool is private");
+//    }
+//
+//    // if we got here - the initial tranche is still active. move all the shares to the new tranche
+//
+//    // passing true because we mint reward shares
+//    processExpirations(true);
+//
+//    Deposit memory initialDeposit = deposits[tokenId][initialTrancheId];
+//    Deposit memory updatedDeposit = deposits[tokenId][newTrancheId];
+//
+//    uint _activeStake = activeStake;
+//    uint _stakeSharesSupply = stakeSharesSupply;
+//    uint newStakeShares;
+//
+//    // calculate the new stake shares if there's a deposit top up
+//    if (topUpAmount > 0) {
+//      newStakeShares = _stakeSharesSupply * topUpAmount / _activeStake;
+//      activeStake = _activeStake + topUpAmount;
+//    }
+//
+//    // calculate the new reward shares
+//    uint newRewardsShares = calculateNewRewardShares(
+//      initialDeposit.stakeShares,
+//      newStakeShares,
+//      initialTrancheId,
+//      newTrancheId,
+//      block.timestamp
+//    );
+//
+//    {
+//      Tranche memory initialTranche = tranches[initialTrancheId];
+//      Tranche memory newTranche = tranches[newTrancheId];
+//
+//      // move the shares to the new tranche
+//      initialTranche.stakeShares -= initialDeposit.stakeShares;
+//      initialTranche.rewardsShares -= initialDeposit.rewardsShares;
+//      newTranche.stakeShares += initialDeposit.stakeShares + newStakeShares;
+//      newTranche.rewardsShares += initialDeposit.rewardsShares + newRewardsShares;
+//
+//      // store the updated tranches
+//      tranches[initialTrancheId] = initialTranche;
+//      tranches[newTrancheId] = newTranche;
+//    }
+//
+//    uint _accNxmPerRewardsShare = accNxmPerRewardsShare;
+//
+//    // if there already is a deposit on the new tranche, calculate its pending rewards
+//    if (updatedDeposit.lastAccNxmPerRewardShare != 0) {
+//      uint newEarningsPerShare = _accNxmPerRewardsShare.uncheckedSub(updatedDeposit.lastAccNxmPerRewardShare);
+//      updatedDeposit.pendingRewards += newEarningsPerShare * updatedDeposit.rewardsShares / ONE_NXM;
+//    }
+//
+//    // calculate the rewards for the deposit being extended and move them to the new deposit
+//    {
+//      uint newEarningsPerShare = _accNxmPerRewardsShare.uncheckedSub(initialDeposit.lastAccNxmPerRewardShare);
+//      updatedDeposit.pendingRewards += newEarningsPerShare * initialDeposit.rewardsShares / ONE_NXM;
+//      updatedDeposit.pendingRewards += initialDeposit.pendingRewards;
+//    }
+//
+//    updatedDeposit.lastAccNxmPerRewardShare = _accNxmPerRewardsShare;
+//    updatedDeposit.stakeShares += initialDeposit.stakeShares + newStakeShares;
+//    updatedDeposit.rewardsShares += initialDeposit.rewardsShares + newRewardsShares;
+//
+//    // everything is moved, delete the initial deposit
+//    delete deposits[tokenId][initialTrancheId];
+//
+//    // store the new deposit.
+//    deposits[tokenId][newTrancheId] = updatedDeposit;
+//
+//    // update global shares supply
+//    stakeSharesSupply = _stakeSharesSupply + newStakeShares;
+//    rewardsSharesSupply += newRewardsShares;
+//
+//    // transfer nxm from the staker and update the pool deposit balance
+//    tokenController.depositStakedNXM(msg.sender, topUpAmount, poolId);
+//
+//    emit DepositExtended(msg.sender, tokenId, initialTrancheId, newTrancheId, topUpAmount);
   }
 
   function burnStake(uint amount) external onlyCoverContract {
@@ -1157,66 +1157,36 @@ contract StakingPool is IStakingPool {
     activeStake = initialStake - burnAmount;
   }
 
-  /* views */
-
-  function getActiveStake() external view returns (uint) {
-    block.timestamp; // prevents warning about function being pure
-    return 0;
-  }
-
-  function getProductStake(
-    uint productId, uint coverExpirationDate
-  ) public view returns (uint) {
-    productId;
-    coverExpirationDate;
-    block.timestamp;
-    return 0;
-  }
-
-  function getAllocatedProductStake(uint productId) public view returns (uint) {
-    productId;
-    block.timestamp;
-    return 0;
-  }
-
-  function getFreeProductStake(
-    uint productId, uint coverExpirationDate
-  ) external view returns (uint) {
-    productId;
-    coverExpirationDate;
-    block.timestamp;
-    return 0;
-  }
-
   /* pool management */
 
-  function recalculateEffectiveWeights(uint[] calldata productIds) external {
-    (
-    uint globalCapacityRatio,
-    /* globalMinPriceRatio */,
-    /* initialPriceRatios */,
-    /* capacityReductionRatios */
-    uint[] memory capacityReductionRatios
-    ) = ICover(coverContract).getPriceAndCapacityRatios(productIds);
-
-    uint _totalEffectiveWeight = totalEffectiveWeight;
-
-    for (uint i = 0; i < productIds.length; i++) {
-      uint productId = productIds[i];
-      StakedProduct memory _product = products[productId];
-
-      uint16 previousEffectiveWeight = _product.lastEffectiveWeight;
-      _product.lastEffectiveWeight = getEffectiveWeight(
-        productId,
-        _product.targetWeight,
-        globalCapacityRatio,
-        capacityReductionRatios[i]
-      );
-      _totalEffectiveWeight = _totalEffectiveWeight - previousEffectiveWeight + _product.lastEffectiveWeight;
-      products[productId] = _product;
-    }
-    totalEffectiveWeight = _totalEffectiveWeight.toUint32();
-  }
+// TEMPORARILY COMMENTED OUT
+//  function recalculateEffectiveWeights(uint[] calldata productIds) external {
+//    (
+//    uint globalCapacityRatio,
+//    /* globalMinPriceRatio */,
+//    /* initialPriceRatios */,
+//    /* capacityReductionRatios */
+//    uint[] memory capacityReductionRatios
+//    ) = ICover(coverContract).getPriceAndCapacityRatios(productIds);
+//
+//    uint _totalEffectiveWeight = totalEffectiveWeight;
+//
+//    for (uint i = 0; i < productIds.length; i++) {
+//      uint productId = productIds[i];
+//      StakedProduct memory _product = products[productId];
+//
+//      uint16 previousEffectiveWeight = _product.lastEffectiveWeight;
+//      _product.lastEffectiveWeight = getEffectiveWeight(
+//        productId,
+//        _product.targetWeight,
+//        globalCapacityRatio,
+//        capacityReductionRatios[i]
+//      );
+//      _totalEffectiveWeight = _totalEffectiveWeight - previousEffectiveWeight + _product.lastEffectiveWeight;
+//      products[productId] = _product;
+//    }
+//    totalEffectiveWeight = _totalEffectiveWeight.toUint32();
+//  }
 
   function setProducts(StakedProductParam[] memory params) external onlyManager {
     uint numProducts = params.length;
