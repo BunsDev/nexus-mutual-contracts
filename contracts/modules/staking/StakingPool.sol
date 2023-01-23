@@ -635,7 +635,8 @@ contract StakingPool is IStakingPool, Multicall {
           request.productId,
           request.allocationId,
           request.previousStart,
-          request.previousExpiration
+          request.previousExpiration,
+          block.timestamp
         );
 
     // we are only deallocating
@@ -663,7 +664,7 @@ contract StakingPool is IStakingPool, Multicall {
       initialCapacityUsed,
       totalCapacity,
       allocationId
-    ) = allocate(amount, request, trancheAllocations);
+    ) = allocate(amount, block.timestamp, request, trancheAllocations);
 
     // the returned premium value has 18 decimals
     premium = getPremium(
@@ -718,13 +719,13 @@ contract StakingPool is IStakingPool, Multicall {
     uint productId,
     uint allocationId,
     uint start,
-    uint expiration
+    uint expiration,
+    uint timestamp
   ) internal returns (uint[] memory activeAllocations) {
-
     uint packedCoverTrancheAllocation = coverTrancheAllocations[allocationId];
-    activeAllocations = getActiveAllocations(productId);
+    activeAllocations = getActiveAllocations(productId, timestamp);
 
-    uint currentFirstActiveTrancheId = block.timestamp / TRANCHE_DURATION;
+    uint currentFirstActiveTrancheId = timestamp / TRANCHE_DURATION;
     uint[] memory coverAllocations = new uint[](MAX_ACTIVE_TRANCHES);
 
     // number of already expired tranches to skip
@@ -752,9 +753,15 @@ contract StakingPool is IStakingPool, Multicall {
   function getActiveAllocations(
     uint productId
   ) public view returns (uint[] memory trancheAllocations) {
+    return getActiveAllocations(productId, block.timestamp);
+  }
 
-    uint _firstActiveTrancheId = block.timestamp / TRANCHE_DURATION;
-    uint currentBucket = (block.timestamp / BUCKET_DURATION).toUint16();
+    function getActiveAllocations(
+    uint productId,
+    uint timestamp
+  ) internal view returns (uint[] memory trancheAllocations) {
+    uint _firstActiveTrancheId = timestamp / TRANCHE_DURATION;
+    uint currentBucket = (timestamp / BUCKET_DURATION).toUint16();
     uint lastBucketId;
 
     (trancheAllocations, lastBucketId) = getStoredAllocations(productId, _firstActiveTrancheId);
@@ -902,6 +909,7 @@ contract StakingPool is IStakingPool, Multicall {
 
   function allocate(
     uint amount,
+    uint timestamp,
     AllocationRequest calldata request,
     uint[] memory trancheAllocations
   ) internal returns (
@@ -920,20 +928,21 @@ contract StakingPool is IStakingPool, Multicall {
 
     coverAllocationAmount = Math.divCeil(amount, NXM_PER_ALLOCATION_UNIT);
 
-    uint _firstActiveTrancheId = block.timestamp / TRANCHE_DURATION;
-    uint firstTrancheIdToUse = (block.timestamp + request.period + request.gracePeriod) / TRANCHE_DURATION;
-    uint startIndex = firstTrancheIdToUse - _firstActiveTrancheId;
-
+    uint _firstActiveTrancheId = timestamp / TRANCHE_DURATION;
     uint[] memory coverAllocations = new uint[](MAX_ACTIVE_TRANCHES);
-    uint[] memory trancheCapacities = getTrancheCapacities(
-      request.productId,
-      firstTrancheIdToUse,
-      MAX_ACTIVE_TRANCHES - startIndex, // count
-      request.globalCapacityRatio,
-      request.capacityReductionRatio
-    );
 
     {
+      uint firstTrancheIdToUse = (timestamp + request.period + request.gracePeriod) / TRANCHE_DURATION;
+      uint startIndex = firstTrancheIdToUse - _firstActiveTrancheId;
+
+      uint[] memory trancheCapacities = getTrancheCapacities(
+        request.productId,
+        firstTrancheIdToUse,
+        MAX_ACTIVE_TRANCHES - startIndex, // count
+        request.globalCapacityRatio,
+        request.capacityReductionRatio
+      );
+
       uint remainingAmount = coverAllocationAmount;
       uint packedCoverAllocations;
 
@@ -971,7 +980,7 @@ contract StakingPool is IStakingPool, Multicall {
     updateExpiringCoverAmounts(
       request.productId,
       _firstActiveTrancheId,
-      Math.divCeil(block.timestamp + request.period, BUCKET_DURATION), // targetBucketId
+      Math.divCeil(timestamp + request.period, BUCKET_DURATION), // targetBucketId
       coverAllocations,
       true // isAllocation
     );
@@ -1209,7 +1218,7 @@ contract StakingPool is IStakingPool, Multicall {
     emit DepositExtended(msg.sender, tokenId, initialTrancheId, newTrancheId, topUpAmount);
   }
 
-  function burnStake(uint amount) external onlyCoverContract {
+  function burnStake(uint amount, uint coverAmount, AllocationRequest calldata request) external onlyCoverContract {
 
     // TODO: block the pool if we perform 100% of the stake
 
@@ -1225,6 +1234,17 @@ contract StakingPool is IStakingPool, Multicall {
 
     // sstore
     activeStake = (initialStake - burnAmount).toUint96();
+
+    // update allocations
+    uint[] memory trancheAllocations =  getActiveAllocationsWithoutCover(
+          request.productId,
+          request.allocationId,
+          request.previousStart,
+          request.previousExpiration,
+          request.previousStart
+        );
+
+    allocate(coverAmount, request.previousStart, request, trancheAllocations);
   }
 
   /* views */
