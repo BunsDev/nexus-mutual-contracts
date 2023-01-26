@@ -290,6 +290,7 @@ contract IndividualClaims is IIndividualClaims, MasterAwareV2 {
         productType.claimMethod == uint8(ClaimMethod.IndividualClaims),
         "Invalid claim method for this product type"
       );
+      // the following line reverts. segment.amount was reduced by the previous paid out amounts
       require(requestedAmount <= segment.amount, "Covered amount exceeded");
       require(segment.start <= block.timestamp, "Cover starts in the future");
       require(

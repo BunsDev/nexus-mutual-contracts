@@ -1090,7 +1090,7 @@ describe('submitClaim', function () {
     }
   });
 
-  it('correctly calculates premium in cover edit after a claim', async function () {
+  it.only('correctly calculates premium in cover edit after a claim', async function () {
     const { DEFAULT_PRODUCTS } = this;
     const { p1, ic, cover, stakingPool0, as } = this.contracts;
     const [coverBuyer1, staker1, staker2] = this.accounts.members;
@@ -1200,6 +1200,43 @@ describe('submitClaim', function () {
     // should pay for premium to reset amount
     expect(ethBalanceAfter).to.not.be.equal(ethBalanceBefore);
     expect(ethBalanceAfter).to.be.equal(ethBalanceBefore.sub(totalEditPremium).add(1));
+
+    const { poll } = await as.assessments(0);
+    const { payoutCooldownInDays } = await as.config();
+    const { payoutRedemptionPeriodInDays } = await ic.config();
+    const endPayoutTime = poll.end + daysToSeconds(payoutCooldownInDays) + daysToSeconds(payoutRedemptionPeriodInDays);
+
+    await setTime(endPayoutTime);
+
+    // Submit a full claim
+    const fullClaimAmount = amount;
+
+    {
+      const [deposit] = await ic.getAssessmentDepositAndReward(fullClaimAmount, period, coverAsset);
+      const segmentId = 1;
+      // Reverts
+      // Error: VM Exception while processing transaction: reverted with reason string 'Covered amount exceeded'
+      // at IndividualClaims._submitClaim (contracts/modules/assessment/IndividualClaims.sol:295)
+      // at IndividualClaims.submitClaim (contracts/modules/assessment/IndividualClaims.sol:238)
+      await ic.connect(coverBuyer1).submitClaim(coverId, segmentId, fullClaimAmount, '', {
+        value: deposit.mul('2'),
+      });
+
+      const assessmentId = 1;
+      const assessmentStakingAmount = parseEther('1000');
+      await acceptClaim({ staker: staker2, assessmentStakingAmount, as, assessmentId });
+
+      const ethBalanceBefore = await ethers.provider.getBalance(coverBuyer1.address);
+
+      // redeem payout
+      await ic.redeemClaimPayout(assessmentId);
+
+      const ethBalanceAfter = await ethers.provider.getBalance(coverBuyer1.address);
+      expect(ethBalanceAfter).to.be.equal(ethBalanceBefore.add(fullClaimAmount).add(deposit));
+
+      const { payoutRedeemed } = await ic.claims(assessmentId);
+      expect(payoutRedeemed).to.be.equal(true);
+    }
   });
 
   it('correctly updates pool allocation after claim and cover edit', async function () {
