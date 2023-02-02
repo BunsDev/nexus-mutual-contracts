@@ -139,6 +139,13 @@ async function main() {
     { alias: 'stETH', abiFilename: 'ERC20' },
   );
 
+  console.log('Deploying enzymeVault');
+  const enzymeVault = await deployImmutable(
+    'contracts/mocks/Tokens/ERC20MintableDetailed.sol:ERC20MintableDetailed',
+    ['enzymeVault Mock', 'enzymeVault', 18],
+    { alias: 'enzymeVault', abiFilename: 'ERC20' },
+  );
+
   console.log('Deploying disposable NXMaster');
   const master = await deployProxy('DisposableNXMaster');
 
@@ -294,7 +301,7 @@ async function main() {
   await disposableMCR.initializeNextMcr(mcr.address, master.address);
 
   console.log('Deploying Pool');
-  const poolParameters = [master, priceFeedOracle, swapOperator, dai, stETH].map(x => x.address);
+  const poolParameters = [master, priceFeedOracle, swapOperator, dai, stETH, enzymeVault].map(x => x.address);
   const pool = await deployImmutable('Pool', poolParameters);
 
   console.log('Minting DAI to Pool');
