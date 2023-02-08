@@ -38,6 +38,8 @@ const DAI_PRICE_FEED_ORACLE_AGGREGATOR = '0x773616E4d11A78F511299002da57A0a94577
 const STETH_PRICE_FEED_ORACLE_AGGREGATOR = '0x86392dC19c0b719886221c78AB11eb8Cf5c52812';
 const ENZYMEV4_VAULT_PRICE_FEED_ORACLE_AGGREGATOR = '0xCc72039A141c6e34a779eF93AEF5eB4C82A893c7';
 
+const EULER_V1_PRODUCT_ID = '0x0000000000000000000000000000000000000028';
+
 const MaxUint96 = '79228162514264337593543950335';
 
 const ListIdForReceivers = 218;
@@ -697,7 +699,6 @@ describe('V2 upgrade', function () {
     // expect(tcNxmBalance).to.be.equal(rewardsSum.add(coverNotesSum));
   });
 
-  // TODO review
   it('run populate-v2-products script', async function () {
     await populateV2Products(this.cover.address, this.abMembers[0]);
   });
@@ -1120,7 +1121,7 @@ describe('V2 upgrade', function () {
     const coverBuyer = this.abMembers[4];
     const poolEthBalanceBefore = await ethers.provider.getBalance(this.pool.address);
 
-    const productId = 55;
+    const productId = this.productsV1.getNewProductId(EULER_V1_PRODUCT_ID);
 
     const coverAsset = 0; // ETH
     const amount = parseEther('2');
@@ -1130,10 +1131,12 @@ describe('V2 upgrade', function () {
 
     const poolAllocationRequest = [{ poolId: this.armorAAAPoolId, coverAmountInAsset: amount }];
 
+    console.log(`Buyer ${coverBuyer._address} buying cover for ${productId.toString()} on Pool ${this.armorPool0Id}`);
+
     await this.cover.connect(coverBuyer).buyCover(
       {
         coverId: MaxUint256,
-        owner: coverBuyer.address,
+        owner: coverBuyer._address,
         productId,
         coverAsset,
         amount,
