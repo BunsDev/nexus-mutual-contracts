@@ -179,10 +179,9 @@ describe('V2 upgrade', function () {
     await getProductAddresses();
   });
 
-  // TODO to be reviewed
+  // Generate V1 prices inside LegacyPooledStaking.sol
   it.skip('run get-v1-cover-prices', async function () {
-    const directProvider = new ethers.providers.JsonRpcProvider(process.env.TEST_ENV_FORK);
-    await getV1CoverPrices(directProvider);
+    await getV1CoverPrices();
   });
 
   // TODO to be reviewed
@@ -585,8 +584,8 @@ describe('V2 upgrade', function () {
     await tx.wait();
   });
 
-  // TODO review
-  it.skip('unlock claim assessment stakes', async function () {
+  // TODO in progress
+  it('Unlock stakes in Claim Assessment and send them to their owners', async function () {
     const stakesPath = path.join(config.paths.root, 'scripts/v2-migration/output/eligibleForCLAUnlock.json');
     const claimAssessors = require(stakesPath).map(x => x.member);
 
