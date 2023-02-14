@@ -1137,7 +1137,7 @@ describe('V2 upgrade', function () {
 
     await this.cover.connect(coverBuyer).buyCover(
       {
-        coverId: MaxUint256,
+        coverId: '0', // new cover
         owner: coverBuyer._address,
         productId,
         coverAsset,
