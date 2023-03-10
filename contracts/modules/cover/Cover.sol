@@ -497,6 +497,7 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
     string calldata ipfsDescriptionHash
   ) external whenNotPaused returns (uint /*poolId*/, address /*stakingPoolAddress*/) {
 
+    uint numProducts = productInitParams.length;
     if (msg.sender != master.getLatestAddress("PS")) {
 
       // TODO: replace this with onlyMember modifier after the v2 release
@@ -508,10 +509,12 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
         "Caller is not a member"
       );
 
+
       // override with initial price
-      for (uint i = 0; i < productInitParams.length; i++) {
+      for (uint i = 0; i < numProducts; i++) {
 
         uint productId = productInitParams[i].productId;
+
         productInitParams[i].initialPrice = _products[productId].initialPriceRatio;
 
         if (productInitParams[i].targetPrice < GLOBAL_MIN_PRICE_RATIO) {
@@ -521,6 +524,13 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
     }
 
     (uint poolId, address stakingPoolAddress) = stakingPoolFactory.create(address(this));
+
+    // check if the pool is allowed to have these products
+    for (uint i = 0; i < numProducts; i++) {
+      if (!isPoolAllowed(productInitParams[i].productId, poolId)) {
+        revert PoolNotAllowedForThisProduct(productInitParams[i].productId);
+      }
+    }
 
     IStakingPool(stakingPoolAddress).initialize(
       isPrivatePool,
@@ -777,7 +787,7 @@ contract Cover is ICover, MasterAwareV2, IStakingPoolBeacon, ReentrancyGuard {
     return uint(activeCover[assetId].totalActiveCoverInAsset);
   }
 
-  function isPoolAllowed(uint productId, uint poolId) external view returns (bool) {
+  function isPoolAllowed(uint productId, uint poolId) public view returns (bool) {
 
     uint poolCount = allowedPools[productId].length;
 
