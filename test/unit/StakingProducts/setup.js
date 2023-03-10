@@ -129,8 +129,8 @@ async function setup() {
     POOL_FEE_DENOMINATOR: await stakingPool.POOL_FEE_DENOMINATOR(),
     GLOBAL_CAPACITY_DENOMINATOR: await stakingPool.GLOBAL_CAPACITY_DENOMINATOR(),
     TRANCHE_DURATION: await stakingProducts.TRANCHE_DURATION(),
-    GLOBAL_CAPACITY_RATIO: await cover.globalCapacityRatio(),
-    GLOBAL_REWARDS_RATIO: await cover.globalRewardsRatio(),
+    GLOBAL_CAPACITY_RATIO: await cover.GLOBAL_CAPACITY_RATIO(),
+    GLOBAL_REWARDS_RATIO: await cover.GLOBAL_REWARDS_RATIO(),
     GLOBAL_MIN_PRICE_RATIO: await cover.GLOBAL_MIN_PRICE_RATIO(),
   };
 

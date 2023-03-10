@@ -98,7 +98,7 @@ contract StakingProducts is IStakingProducts, MasterAwareV2, Multicall {
         revert ProductNotInitialized();
       }
 
-    uint16 previousEffectiveWeight = _product.lastEffectiveWeight;
+      uint16 previousEffectiveWeight = _product.lastEffectiveWeight;
       _product.lastEffectiveWeight = _getEffectiveWeight(
         stakingPool,
         productId,

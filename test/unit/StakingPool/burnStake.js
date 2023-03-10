@@ -139,7 +139,9 @@ describe('burnStake', function () {
 
     // burn activeStake - 1
     const activeStake = await stakingPool.getActiveStake();
-    await stakingPool.connect(this.coverSigner).burnStake(activeStake.sub(1), burnStakeParams);
+    await stakingPool
+      .connect(this.coverSigner)
+      .burnStake(activeStake.sub(parseEther('.0100000000000001')), burnStakeParams);
 
     // deposit should work
     const { firstActiveTrancheId } = await getTranches(DEFAULT_PERIOD, DEFAULT_GRACE_PERIOD);
@@ -147,7 +149,7 @@ describe('burnStake', function () {
       .reverted;
 
     // Burn all activeStake
-    await stakingPool.connect(this.coverSigner).burnStake(stakedNxmAmount.add(1), burnStakeParams);
+    await stakingPool.connect(this.coverSigner).burnStake(activeStake, burnStakeParams);
 
     // deposit should fail
     await expect(
@@ -202,8 +204,8 @@ describe('burnStake', function () {
 
     const burnAmount = initialStake.add(parseEther('1'));
 
-    // leaves 1 wei to avoid division by zero
-    const actualBurnedAmount = initialStake.sub(1);
+    // leaves 1 capacity unit to avoid division by zero
+    const actualBurnedAmount = initialStake.sub(parseEther('.01'));
     await expect(stakingPool.connect(this.coverSigner).burnStake(burnAmount, burnStakeParams))
       .to.emit(stakingPool, 'StakeBurned')
       .withArgs(actualBurnedAmount);
